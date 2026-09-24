@@ -128,6 +128,18 @@
     .task-reminder { grid-column: 2 / 3; }
     .task-submit { grid-column: 1 / -1; }
 
+    .sync-section { background: #fbfdfd; }
+    .sync-copy { margin: -4px 0 11px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .sync-status { margin: 0 0 10px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .sync-status.on { color: var(--teal); font-weight: 720; }
+    .auth-form { display: grid; gap: 7px; }
+    .auth-form input { width: 100%; height: 35px; border: 1px solid var(--line); border-radius: 4px; background: #fff; padding: 0 9px; color: var(--ink); }
+    .auth-form input:focus { outline: 2px solid #a8d9db; outline-offset: -1px; }
+    .auth-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .auth-actions button { min-width: 0; padding-inline: 6px; }
+    .sync-logout { margin-top: 8px; }
+    .sync-note { margin: 8px 0 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+
     .task-list { display: grid; gap: 2px; max-height: 680px; margin-top: 14px; overflow-y: auto; padding-right: 3px; }
     .task-item { display: grid; grid-template-columns: 19px minmax(0, 1fr) 29px; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid #ecf0f1; }
     .task-item.ddl-item { grid-template-columns: 19px minmax(0, 1fr); }
@@ -327,6 +339,21 @@
       </section>
 
       <aside class="side-panel">
+        <section class="side-section sync-section">
+          <h2 class="section-heading">跨设备同步</h2>
+          <p class="sync-copy">电脑和手机使用同一个账号登录后，待办、完成状态和作业要求会自动同步。</p>
+          <p class="sync-status" id="syncStatus">正在连接同步服务…</p>
+          <form class="auth-form" id="authForm">
+            <input id="authEmail" type="email" required autocomplete="email" placeholder="邮箱">
+            <input id="authPassword" type="password" required minlength="8" autocomplete="current-password" placeholder="密码（至少 8 位）">
+            <div class="auth-actions">
+              <button class="primary-button" type="submit">登录同步</button>
+              <button class="neutral-button" id="signUpButton" type="button">注册账号</button>
+            </div>
+          </form>
+          <button class="neutral-button sync-logout" id="logoutButton" type="button" hidden>退出登录</button>
+          <p class="sync-note">密码只用于 Supabase 登录，不会显示或写入日历文件。</p>
+        </section>
         <section class="side-section">
           <h2 class="section-heading">任务与 DDL <span class="count" id="taskCount"></span></h2>
           <form class="task-form" id="taskForm">
@@ -350,9 +377,14 @@
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const MS_DAY = 86400000;
     const appState = { cursor: new Date(), tasks: [] };
+    const SUPABASE_URL = 'https://evupwthwlnrugqrpzofq.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_NxiVOGJSUGPaSvvM8RUejw_08xbzfGd';
+    const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const syncState = { user: null, busy: false };
     const requirementStorageKey = 'cityu-sem-a-requirements';
     const defaultRequirements = {
       'gender-midterm': {
@@ -394,7 +426,10 @@
       } catch { return JSON.parse(JSON.stringify(defaultRequirements)); }
     }
     let requirements = loadRequirements();
-    function saveRequirements() { localStorage.setItem(requirementStorageKey, JSON.stringify(requirements)); }
+    function saveRequirements() {
+      localStorage.setItem(requirementStorageKey, JSON.stringify(requirements));
+      syncRequirementsToCloud();
+    }
     function requirementText(id) { return requirements[id] || defaultRequirements[id]; }
     function normalizeRequirementId(value) {
       if (!value) return '';
@@ -505,7 +540,100 @@
       } catch { return seededTasks.map(task => ({ ...task })); }
     }
     appState.tasks = loadTasks();
-    function saveTasks() { localStorage.setItem('cityu-sem-a-tasks', JSON.stringify(appState.tasks)); }
+    function saveTasks() {
+      localStorage.setItem('cityu-sem-a-tasks', JSON.stringify(appState.tasks));
+      syncTasksToCloud();
+    }
+    function setSyncStatus(message, online = false) {
+      const node = document.querySelector('#syncStatus');
+      if (!node) return;
+      node.textContent = message;
+      node.classList.toggle('on', online);
+    }
+    function requirementRows() {
+      return Object.entries(requirements).map(([id, item]) => ({ id, title: item.title, body: item.text }));
+    }
+    function taskRow(task, userId) {
+      return {
+        user_id: userId,
+        id: task.id,
+        title: task.title,
+        due: task.due,
+        reminder: Number(task.reminder) || 0,
+        done: Boolean(task.done),
+        notified: Boolean(task.notified),
+        requirement: task.requirement || null,
+        updated_at: new Date().toISOString(),
+      };
+    }
+    async function syncTasksToCloud() {
+      if (!supabaseClient || !syncState.user || syncState.busy) return;
+      const { error } = await supabaseClient.from('planner_tasks').upsert(appState.tasks.map(task => taskRow(task, syncState.user.id)), { onConflict: 'user_id,id' });
+      if (error) setSyncStatus(`同步失败：${error.message}`, false);
+    }
+    async function deleteTaskFromCloud(id) {
+      if (!supabaseClient || !syncState.user) return;
+      const { error } = await supabaseClient.from('planner_tasks').delete().eq('user_id', syncState.user.id).eq('id', id);
+      if (error) setSyncStatus(`同步失败：${error.message}`, false);
+    }
+    async function syncRequirementsToCloud() {
+      if (!supabaseClient || !syncState.user || syncState.busy) return;
+      const { error } = await supabaseClient.from('planner_requirements').upsert(requirementRows().map(row => ({ ...row, user_id: syncState.user.id, updated_at: new Date().toISOString() })), { onConflict: 'user_id,id' });
+      if (error) setSyncStatus(`同步失败：${error.message}`, false);
+    }
+    function cloudTask(row) {
+      return { id: row.id, title: row.title, due: row.due, reminder: String(row.reminder || 0), done: Boolean(row.done), notified: Boolean(row.notified), requirement: row.requirement || undefined };
+    }
+    async function syncFromCloud() {
+      if (!supabaseClient || !syncState.user) return;
+      syncState.busy = true;
+      setSyncStatus('正在同步…');
+      const [taskResult, requirementResult] = await Promise.all([
+        supabaseClient.from('planner_tasks').select('*').eq('user_id', syncState.user.id),
+        supabaseClient.from('planner_requirements').select('*').eq('user_id', syncState.user.id),
+      ]);
+      if (taskResult.error || requirementResult.error) {
+        syncState.busy = false;
+        const error = taskResult.error || requirementResult.error;
+        setSyncStatus(`同步失败：${error.message}`);
+        return;
+      }
+      const cloudTasks = taskResult.data || [];
+      if (cloudTasks.length) appState.tasks = cloudTasks.map(cloudTask);
+      const cloudRequirements = requirementResult.data || [];
+      cloudRequirements.forEach(row => {
+        if (requirements[row.id]) requirements[row.id] = { ...requirements[row.id], title: row.title, text: row.body };
+      });
+      localStorage.setItem('cityu-sem-a-tasks', JSON.stringify(appState.tasks));
+      localStorage.setItem(requirementStorageKey, JSON.stringify(requirements));
+      syncState.busy = false;
+      if (!cloudTasks.length) await syncTasksToCloud();
+      if (!cloudRequirements.length) await syncRequirementsToCloud();
+      setSyncStatus(`已同步：${syncState.user.email || '当前账号'}`, true);
+      renderTasks();
+      renderCalendar();
+    }
+    function updateAuthUi() {
+      const signedIn = Boolean(syncState.user);
+      document.querySelector('#authForm').hidden = signedIn;
+      document.querySelector('#logoutButton').hidden = !signedIn;
+      if (!supabaseClient) setSyncStatus('同步服务暂不可用');
+      else if (signedIn) setSyncStatus(`已登录：${syncState.user.email || '当前账号'}`, true);
+      else setSyncStatus('未登录：当前仅保存在本设备');
+    }
+    async function initCloudSync() {
+      if (!supabaseClient) { updateAuthUi(); return; }
+      const { data, error } = await supabaseClient.auth.getSession();
+      if (error) { setSyncStatus(`连接失败：${error.message}`); return; }
+      syncState.user = data.session?.user || null;
+      updateAuthUi();
+      if (syncState.user) await syncFromCloud();
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
+        syncState.user = session?.user || null;
+        updateAuthUi();
+        if (syncState.user) setTimeout(() => syncFromCloud(), 0);
+      });
+    }
     function taskEvents() { return appState.tasks.map(task => ({ date: task.due.slice(0, 10), time: timeLabel(task.due), title: task.title, kind: 'task', task })); }
     function eventsFor(date) { return [...academicEvents, ...taskEvents()].filter(event => event.date === date).sort((a, b) => a.time.localeCompare(b.time)); }
     function requirementIdForEvent(event) {
@@ -634,7 +762,7 @@
       const button = event.target.closest('button[data-action="delete"]');
       if (button) {
         appState.tasks = appState.tasks.filter(task => task.id !== button.dataset.id);
-        saveTasks(); renderTasks(); renderCalendar();
+        saveTasks(); deleteTaskFromCloud(button.dataset.id); renderTasks(); renderCalendar();
         return;
       }
       const saveButton = event.target.closest('button[data-action="save-requirement"]');
@@ -650,6 +778,28 @@
       if (event.target.dataset.action !== 'toggle') return;
       const task = appState.tasks.find(item => item.id === event.target.dataset.id);
       task.done = event.target.checked; saveTasks(); renderTasks(); renderCalendar();
+    });
+    document.querySelector('#authForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!supabaseClient) return;
+      const email = document.querySelector('#authEmail').value.trim();
+      const password = document.querySelector('#authPassword').value;
+      setSyncStatus('正在登录…');
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) setSyncStatus(`登录失败：${error.message}`);
+    });
+    document.querySelector('#signUpButton').addEventListener('click', async () => {
+      if (!supabaseClient) return;
+      const email = document.querySelector('#authEmail').value.trim();
+      const password = document.querySelector('#authPassword').value;
+      if (!email || password.length < 8) { setSyncStatus('请先填写邮箱和至少 8 位密码'); return; }
+      setSyncStatus('正在注册…');
+      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) { setSyncStatus(`注册失败：${error.message}`); return; }
+      if (!data.session) setSyncStatus('注册成功，请先查收邮箱并点击确认链接');
+    });
+    document.querySelector('#logoutButton').addEventListener('click', async () => {
+      if (supabaseClient) await supabaseClient.auth.signOut();
     });
     document.addEventListener('click', event => {
       const link = event.target.closest('[data-open-requirement]');
@@ -667,6 +817,7 @@
       document.querySelector('#reminderState').classList.add('on');
     }
     renderRequirements(); renderCalendar(); renderUpcoming(); renderTasks(); reminderTick(); setInterval(reminderTick, 30000);
+    initCloudSync();
   </script>
 </body>
 </html>
