@@ -137,6 +137,7 @@
     .auth-form input:focus { outline: 2px solid #a8d9db; outline-offset: -1px; }
     .auth-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
     .auth-actions button { min-width: 0; padding-inline: 6px; }
+    .auth-resend { grid-column: 1 / -1; font-size: 11px; }
     .sync-logout { margin-top: 8px; }
     .sync-note { margin: 8px 0 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
 
@@ -349,6 +350,7 @@
             <div class="auth-actions">
               <button class="primary-button" type="submit">登录同步</button>
               <button class="neutral-button" id="signUpButton" type="button">注册账号</button>
+              <button class="neutral-button auth-resend" id="resendButton" type="button">重新发送确认邮件</button>
             </div>
           </form>
           <button class="neutral-button sync-logout" id="logoutButton" type="button" hidden>退出登录</button>
@@ -621,6 +623,11 @@
       else if (signedIn) setSyncStatus(`已登录：${syncState.user.email || '当前账号'}`, true);
       else setSyncStatus('未登录：当前仅保存在本设备');
     }
+    function authRedirectUrl() {
+      return window.location.protocol === 'http:' || window.location.protocol === 'https:'
+        ? `${window.location.origin}${window.location.pathname}`
+        : 'https://xzyeah310.github.io/cityu-calendar/';
+    }
     async function initCloudSync() {
       if (!supabaseClient) { updateAuthUi(); return; }
       const { data, error } = await supabaseClient.auth.getSession();
@@ -794,9 +801,17 @@
       const password = document.querySelector('#authPassword').value;
       if (!email || password.length < 8) { setSyncStatus('请先填写邮箱和至少 8 位密码'); return; }
       setSyncStatus('正在注册…');
-      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      const { data, error } = await supabaseClient.auth.signUp({ email, password, options: { emailRedirectTo: authRedirectUrl() } });
       if (error) { setSyncStatus(`注册失败：${error.message}`); return; }
       if (!data.session) setSyncStatus('注册成功，请先查收邮箱并点击确认链接');
+    });
+    document.querySelector('#resendButton').addEventListener('click', async () => {
+      if (!supabaseClient) return;
+      const email = document.querySelector('#authEmail').value.trim();
+      if (!email) { setSyncStatus('请先填写注册邮箱'); return; }
+      setSyncStatus('正在重新发送确认邮件…');
+      const { error } = await supabaseClient.auth.resend({ type: 'signup', email, options: { emailRedirectTo: authRedirectUrl() } });
+      setSyncStatus(error ? `发送失败：${error.message}` : '确认邮件已重新发送，请查收邮箱');
     });
     document.querySelector('#logoutButton').addEventListener('click', async () => {
       if (supabaseClient) await supabaseClient.auth.signOut();
