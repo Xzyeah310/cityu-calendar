@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>CityU Sem A Planner</title>
+  <style>
+    :root {
+      --canvas: #eef3f4;
+      --paper: #ffffff;
+      --ink: #15242a;
+      --muted: #64747b;
+      --line: #dbe4e6;
+      --teal: #007e86;
+      --teal-soft: #d9f1f1;
+      --purple: #6435a1;
+      --purple-soft: #eee4fa;
+      --purple-ink: #4a247f;
+      --orange: #bc4911;
+      --orange-soft: #ffe0c9;
+      --rose: #b83561;
+      --rose-soft: #fbe0e8;
+      --sky: #1765a6;
+      --sky-soft: #dceefd;
+      --gold: #936000;
+      --gold-soft: #fff0cb;
+      --green: #167a58;
+      --green-soft: #d9f3e8;
+      --blue: #2263a1;
+      --blue-soft: #e0ecfa;
+      --shadow: 0 10px 28px rgba(27, 55, 62, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+
+    .shell { max-width: 1500px; margin: 0 auto; padding: 28px; }
+
+    .topbar {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 0 2px 22px;
+    }
+
+    .eyebrow { color: var(--teal); font-size: 13px; font-weight: 750; margin: 0 0 6px; }
+    h1 { margin: 0; font-size: 29px; line-height: 1.1; letter-spacing: 0; }
+    .term { color: var(--muted); font-size: 14px; font-weight: 650; white-space: nowrap; }
+
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 316px; gap: 22px; align-items: start; }
+    .calendar-panel, .side-panel { background: var(--paper); border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .calendar-panel { min-width: 0; }
+
+    .calendar-head { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+    .month-label { font-size: 18px; font-weight: 760; }
+    .controls { display: flex; align-items: center; gap: 8px; }
+
+    .icon-button, .neutral-button, .primary-button, .delete-button {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      height: 34px;
+      border-radius: 5px;
+      padding: 0 10px;
+      font-weight: 680;
+    }
+    .icon-button { width: 34px; padding: 0; font-size: 20px; line-height: 1; }
+    .neutral-button:hover, .icon-button:hover, .delete-button:hover { background: #f3f7f7; }
+    .primary-button { background: var(--teal); border-color: var(--teal); color: #fff; }
+    .primary-button:hover { background: #006e75; }
+    .delete-button { color: #9b340d; border-color: #efcfc0; }
+
+    .weekdays, .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    .weekdays { border-bottom: 1px solid var(--line); background: #f7faf9; }
+    .weekdays div { padding: 11px 8px; color: var(--muted); text-align: center; font-size: 13px; font-weight: 720; }
+    .days { grid-auto-rows: minmax(158px, auto); }
+    .day { position: relative; overflow: visible; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 9px 8px; background: #fff; }
+    .day:nth-child(7n) { border-right: 0; }
+    .day.outside { background: #f8fbfb; }
+    .day.today .date-number { color: #fff; background: var(--teal); }
+    .date-number { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; margin-bottom: 6px; font-size: 13px; font-weight: 760; }
+    .day.outside .date-number { color: #9ba9ae; }
+    .events { display: grid; gap: 4px; }
+    .event { overflow: hidden; border-left: 3px solid var(--purple); padding: 4px 5px; background: var(--purple-soft); color: var(--purple-ink); font-size: 12px; line-height: 1.3; font-weight: 720; white-space: nowrap; text-overflow: ellipsis; }
+    .event.class { white-space: normal; }
+    .event.deadline { overflow: visible; border-left-width: 4px; background: var(--assignment-bg, var(--orange-soft)); border-left-color: var(--assignment-border, var(--orange)); color: var(--assignment-ink, #852708); font-weight: 780; white-space: normal; text-overflow: clip; }
+    .event.deadline-sm6350, .agenda-event.deadline-sm6350, .week-event.deadline-sm6350 { --assignment-bg: var(--purple-soft); --assignment-card-bg: rgba(100, 53, 161, .20); --assignment-border: var(--purple); --assignment-ink: var(--purple-ink); }
+    .event.deadline-sm5327, .agenda-event.deadline-sm5327, .week-event.deadline-sm5327 { --assignment-bg: var(--gold-soft); --assignment-card-bg: rgba(147, 96, 0, .20); --assignment-border: var(--gold); --assignment-ink: #704a00; }
+    .event.deadline-sm6331, .agenda-event.deadline-sm6331, .week-event.deadline-sm6331 { --assignment-bg: var(--sky-soft); --assignment-card-bg: rgba(23, 101, 166, .20); --assignment-border: var(--sky); --assignment-ink: #124f88; }
+    .event.deadline-sm5351, .agenda-event.deadline-sm5351, .week-event.deadline-sm5351 { --assignment-bg: var(--teal-soft); --assignment-card-bg: rgba(0, 126, 134, .20); --assignment-border: var(--teal); --assignment-ink: #07565d; }
+    .event.deadline-sm5367, .agenda-event.deadline-sm5367, .week-event.deadline-sm5367 { --assignment-bg: var(--orange-soft); --assignment-card-bg: rgba(188, 73, 17, .20); --assignment-border: var(--orange); --assignment-ink: #852708; }
+    .event.deadline-sm5326, .agenda-event.deadline-sm5326, .week-event.deadline-sm5326 { --assignment-bg: var(--rose-soft); --assignment-card-bg: rgba(184, 53, 97, .20); --assignment-border: var(--rose); --assignment-ink: #8c2045; }
+    .event.task { border-left-color: var(--blue); background: var(--blue-soft); color: #174b7e; }
+    .event.closure, .agenda-event.closure { border-left-color: #7b858a; background: #e7ecee; color: #4e5a5f; font-weight: 780; }
+    .event.cancelled { opacity: .5; text-decoration: line-through; }
+    .more { color: var(--muted); padding-left: 3px; font-size: 11px; font-weight: 700; }
+    .mobile-agenda { display: none; }
+
+    .side-panel { overflow: hidden; }
+    .side-section { padding: 18px; }
+    .side-section + .side-section { border-top: 1px solid var(--line); }
+    .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 13px; font-size: 15px; font-weight: 760; }
+    .count { color: var(--teal); font-size: 12px; }
+    .upcoming { display: grid; gap: 9px; }
+    .upcoming-item { display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 10px; padding-bottom: 9px; border-bottom: 1px solid #ecf0f1; }
+    .upcoming-item:last-child { padding-bottom: 0; border-bottom: 0; }
+    .upcoming-date { color: var(--orange); font-size: 12px; font-weight: 760; line-height: 1.2; }
+    .upcoming-title { font-size: 12px; font-weight: 650; line-height: 1.35; }
+    .upcoming-meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+    .task-form { display: grid; grid-template-columns: 1fr 93px; gap: 8px; }
+    .task-form input, .task-form select { width: 100%; min-width: 0; height: 35px; border: 1px solid var(--line); border-radius: 4px; background: #fff; padding: 0 9px; color: var(--ink); }
+    .task-form input:focus, .task-form select:focus { outline: 2px solid #a8d9db; outline-offset: -1px; }
+    .task-title { grid-column: 1 / -1; }
+    .task-date { grid-column: 1 / 2; }
+    .task-reminder { grid-column: 2 / 3; }
+    .task-submit { grid-column: 1 / -1; }
+
+    .task-list { display: grid; gap: 2px; max-height: 680px; margin-top: 14px; overflow-y: auto; padding-right: 3px; }
+    .task-item { display: grid; grid-template-columns: 19px minmax(0, 1fr) 29px; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid #ecf0f1; }
+    .task-item.ddl-item { grid-template-columns: 19px minmax(0, 1fr); }
+    .task-check-symbol { padding-top: 3px; color: var(--orange); font-size: 10px; }
+    .task-kind { color: var(--muted); font-size: 10px; font-weight: 780; text-transform: uppercase; letter-spacing: .04em; }
+    .task-item .requirement-card { grid-column: 1 / -1; margin: 1px 0 4px 27px; }
+    .task-item:last-child { border-bottom: 0; }
+    .task-item input { width: 16px; height: 16px; accent-color: var(--teal); }
+    .task-name { overflow: hidden; font-size: 13px; font-weight: 670; text-overflow: ellipsis; white-space: nowrap; }
+    .task-item.done .task-name { color: var(--muted); text-decoration: line-through; }
+    .task-due { color: var(--muted); font-size: 11px; margin-top: 2px; }
+    .task-due.ddl-due { color: var(--orange); font-size: 12px; font-weight: 820; }
+    .ddl-badge { display: inline-block; margin-right: 5px; padding: 2px 5px; border-radius: 3px; background: var(--orange-soft); color: var(--orange); font-size: 10px; font-weight: 850; letter-spacing: .04em; }
+    .task-item .icon-button { width: 29px; height: 29px; color: #9b340d; font-size: 17px; }
+    .task-requirement { display: inline-block; margin-top: 4px; color: var(--teal); font-size: 11px; font-weight: 720; text-decoration: none; }
+    .task-requirement:hover { text-decoration: underline; }
+    .empty { color: var(--muted); font-size: 13px; padding: 10px 0 3px; }
+    .reminder-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 13px; padding-top: 13px; border-top: 1px solid #ecf0f1; }
+    .reminder-state { color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .reminder-state.on { color: var(--teal); font-weight: 720; }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px 20px; color: var(--muted); font-size: 11px; font-weight: 650; }
+    .legend span { display: flex; align-items: center; gap: 5px; }
+    .key { display: inline-block; width: 8px; height: 8px; background: var(--purple); }
+    .key.video { background: var(--green); }
+    .key.cinema { background: var(--gold); }
+    .key.curating { background: var(--sky); }
+    .key.influencer { background: var(--teal); }
+    .key.global { background: var(--orange); }
+    .key.gender { background: var(--rose); }
+    .key.task { background: var(--blue); }
+    .key.closure { background: #7b858a; }
+
+    .requirements { display: grid; gap: 9px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #ecf0f1; }
+    .requirements-title { color: var(--muted); font-size: 12px; font-weight: 760; }
+    .requirements-hint { color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .requirement-card { border: 1px solid var(--line); background: #ffffff; }
+    .requirement-card summary { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 10px; color: var(--ink); cursor: pointer; font-size: 12px; font-weight: 750; list-style: none; }
+    .requirement-card summary::-webkit-details-marker { display: none; }
+    .requirement-card summary::after { content: '⌄'; color: var(--muted); font-size: 15px; }
+    .requirement-card[open] summary { border-bottom: 1px solid var(--line); }
+    .requirement-card[open] summary::after { transform: rotate(180deg); }
+    .requirement-editor { display: grid; gap: 7px; padding: 10px; }
+    .requirement-editor label { display: grid; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 720; }
+    .requirement-editor input, .requirement-editor textarea { width: 100%; border: 1px solid var(--line); border-radius: 4px; background: #ffffff; color: var(--ink); font: inherit; font-size: 12px; line-height: 1.5; padding: 7px 8px; }
+    .requirement-editor textarea { min-height: 138px; resize: vertical; }
+    .requirement-editor input:focus, .requirement-editor textarea:focus { outline: 2px solid #cbb8e4; outline-offset: -1px; }
+    .requirement-editor-note { color: var(--muted); font-size: 10px; line-height: 1.4; }
+    .requirement-save { justify-self: start; border: 1px solid var(--line); border-radius: 4px; background: #ffffff; color: var(--teal); padding: 6px 9px; font-size: 11px; font-weight: 760; }
+    .requirement-save:hover { background: #f1f8f8; }
+
+    @media (max-width: 1050px) {
+      .layout { grid-template-columns: 1fr; }
+      .side-panel { display: grid; grid-template-columns: 1fr 1fr; }
+      .side-section + .side-section { border-top: 0; border-left: 1px solid var(--line); }
+    }
+
+    @media (max-width: 680px) {
+      .shell { padding: 14px; }
+      .topbar { align-items: start; flex-direction: column; gap: 7px; padding-bottom: 14px; }
+      h1 { font-size: 24px; }
+      .calendar-head { padding: 14px; }
+      .neutral-button { display: none; }
+      .weekdays, .days { display: none; }
+      .mobile-agenda { display: grid; gap: 9px; padding: 13px; }
+      .agenda-day { display: grid; grid-template-columns: 43px minmax(0, 1fr); gap: 9px; align-items: start; }
+      .agenda-date { color: var(--teal); font-size: 13px; font-weight: 780; line-height: 1.25; text-align: center; }
+      .agenda-events { display: grid; gap: 5px; }
+      .agenda-event { border-left: 4px solid var(--purple); padding: 7px 9px; background: var(--purple-soft); color: var(--purple-ink); font-size: 14px; font-weight: 700; line-height: 1.35; }
+      .agenda-event.deadline { border-left-color: var(--assignment-border, var(--orange)); background: var(--assignment-bg, var(--orange-soft)); color: var(--assignment-ink, #852708); font-weight: 780; }
+      .agenda-event.task { border-left-color: var(--blue); background: var(--blue-soft); color: #174b7e; }
+      .agenda-time { display: inline-block; min-width: 43px; color: inherit; font-weight: 780; }
+      .side-panel { display: block; }
+      .side-section + .side-section { border-top: 1px solid var(--line); border-left: 0; }
+      .legend { padding: 10px 14px; }
+    }
+
+    /* Weekly schedule redesign */
+    body { background: #ffffff; }
+    .shell { max-width: 1640px; padding: 24px 30px 42px; }
+    .topbar { align-items: center; padding: 0 2px 19px; border-bottom: 2px solid var(--ink); }
+    .eyebrow { color: var(--purple); letter-spacing: .08em; }
+    h1 { font-size: 31px; }
+    .layout { grid-template-columns: minmax(0, 1fr) 332px; gap: 18px; margin-top: 20px; }
+    .calendar-panel, .side-panel { border: 1px solid #cfd7d8; box-shadow: none; background: #ffffff; }
+    .calendar-head { align-items: flex-end; padding: 18px 20px 16px; background: #ffffff; }
+    .month-label { font-size: 22px; letter-spacing: -.02em; }
+    .week-subtitle { margin: 0 0 5px; color: var(--muted); font-size: 12px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    .week-grid-wrap { overflow-x: auto; background: #fff; }
+    .week-grid { display: grid; grid-template-columns: 88px repeat(7, minmax(132px, 1fr)); min-width: 1020px; }
+    .week-corner, .week-day { min-height: 62px; padding: 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #ffffff; }
+    .week-day:last-child { border-right: 0; }
+    .week-day.today { background: var(--purple-soft); }
+    .week-day-name { display: block; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .06em; }
+    .week-day-date { display: block; margin-top: 3px; font-size: 17px; font-weight: 780; }
+    .week-day.today .week-day-date { color: var(--purple-ink); }
+    .time-label, .schedule-cell, .task-label, .task-cell { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .time-label, .task-label { padding: 13px 9px; background: #ffffff; color: var(--muted); }
+    .time-label b, .task-label b { display: block; color: var(--ink); font-size: 13px; line-height: 1.2; }
+    .time-label span { display: block; margin-top: 2px; font-size: 11px; }
+    .schedule-cell { min-height: 126px; padding: 7px; background: #fff; }
+    .task-label { background: #ffffff; }
+    .task-cell { min-height: 148px; padding: 7px; background: #ffffff; }
+    .week-grid > :nth-child(8n) { border-right: 0; }
+    .week-event { display: block; margin-bottom: 6px; border: 1px solid #cfc9db; border-left: 4px solid var(--purple); padding: 7px 8px; color: var(--purple-ink); background: #ffffff; font-size: 12px; font-weight: 720; line-height: 1.35; text-decoration: none; }
+    .week-event:last-child { margin-bottom: 0; }
+    .week-event.course-event { min-height: 76px; border-color: #dfe3e4; border-left-color: #dfe3e4; background: var(--course-bg, rgba(100, 53, 161, .20)); color: var(--course-ink, var(--purple-ink)); }
+    .week-event.course-sm6350 { --course-color: #6435a1; --course-bg: rgba(100, 53, 161, .20); --course-ink: #4a247f; }
+    .week-event.course-sm5327 { --course-color: #936000; --course-bg: rgba(147, 96, 0, .20); --course-ink: #704a00; }
+    .week-event.course-sm6331 { --course-color: #1765a6; --course-bg: rgba(23, 101, 166, .20); --course-ink: #124f88; }
+    .week-event.course-sm5351 { --course-color: #007e86; --course-bg: rgba(0, 126, 134, .20); --course-ink: #07565d; }
+    .week-event.course-sm5367 { --course-color: #bc4911; --course-bg: rgba(188, 73, 17, .20); --course-ink: #852708; }
+    .week-event.course-sm5326 { --course-color: #b83561; --course-bg: rgba(184, 53, 97, .20); --course-ink: #8c2045; }
+    .week-event.course-event:hover { background: color-mix(in srgb, var(--course-bg, rgba(100, 53, 161, .20)) 78%, #6b7376); }
+    .week-event-title { display: block; font-size: 13px; font-weight: 800; }
+    .week-event-subtitle { display: block; margin-top: 3px; color: inherit; opacity: .82; font-size: 11px; font-weight: 680; }
+    .week-event.task-event { border-color: #dfe3e4; border-left-color: #dfe3e4; background: var(--course-bg, rgba(34, 99, 161, .20)); color: var(--course-ink, #174b7e); }
+    .week-event.task-event:hover { background: color-mix(in srgb, var(--course-bg, rgba(34, 99, 161, .20)) 78%, #6b7376); }
+    .week-event.deadline-event { border-color: #dfe3e4; border-left-color: #dfe3e4; background: var(--assignment-card-bg, rgba(188, 73, 17, .20)); color: var(--assignment-ink, #852708); }
+    .week-event.deadline-event:hover { background: color-mix(in srgb, var(--assignment-card-bg, rgba(188, 73, 17, .20)) 78%, #6b7376); }
+    .week-event.closure-event { border-color: #9aa7ac; border-left-color: #747f84; background: rgba(116, 127, 132, .18); color: #465157; }
+    .week-event-link-note { display: block; margin-top: 5px; font-size: 11px; font-weight: 780; text-decoration: underline; }
+    .side-panel { background: #ffffff; }
+    .side-section { padding: 17px; }
+    .task-name { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
+    .task-item { align-items: start; }
+    .requirements { background: #ffffff; margin: 15px -2px 0; padding: 13px; border: 1px solid var(--line); }
+    .requirement-link { padding: 5px 0; }
+    .legend { padding: 12px 20px; background: #ffffff; }
+    .calendar-panel > .weekdays, .calendar-panel > .days, .calendar-panel > .mobile-agenda { display: none; }
+
+    .mobile-agenda { padding: 10px; background: #ffffff; }
+    .mobile-day { margin-bottom: 10px; border: 1px solid var(--line); background: #ffffff; }
+    .mobile-day:last-child { margin-bottom: 0; }
+    .mobile-day-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--line); background: #fafcfc; }
+    .mobile-day-header b { font-size: 15px; }
+    .mobile-day-header span { color: var(--muted); font-size: 11px; font-weight: 750; }
+    .mobile-event-row { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 8px; align-items: start; padding: 9px 10px; border-bottom: 1px solid #edf0f1; }
+    .mobile-event-row:last-child { border-bottom: 0; }
+    .mobile-event-time { padding-top: 8px; color: var(--muted); font-size: 11px; font-weight: 760; }
+    .mobile-event { margin: 0; min-height: 0 !important; }
+    .mobile-event-row > a { text-decoration: none; }
+
+    @media (max-width: 1050px) {
+      .layout { grid-template-columns: 1fr; }
+      .side-panel { display: block; }
+      .side-section + .side-section { border-top: 1px solid var(--line); border-left: 0; }
+    }
+
+    @media (max-width: 680px) {
+      .shell { padding: 15px; }
+      .topbar { align-items: flex-start; }
+      .term { white-space: normal; }
+      .topbar { gap: 10px; padding-bottom: 15px; }
+      h1 { font-size: 25px; }
+      .layout { gap: 12px; margin-top: 12px; }
+      .calendar-head { align-items: flex-start; padding: 13px; }
+      .month-label { font-size: 19px; }
+      .controls { flex-shrink: 0; }
+      .calendar-head { padding: 15px; }
+      .week-grid-wrap { display: none; }
+      .calendar-panel > .mobile-agenda { display: block; }
+      .legend { gap: 8px; padding: 12px 13px; font-size: 11px; }
+      .side-section { padding: 14px; }
+      .task-list { max-height: none; overflow: visible; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">CITY UNIVERSITY OF HONG KONG</p>
+        <h1>26/27 Sem A Planner</h1>
+      </div>
+      <div class="term">31 Aug - 30 Nov 2026 · HKT</div>
+    </header>
+
+    <div class="layout">
+      <section class="calendar-panel" aria-label="Academic calendar">
+        <div class="calendar-head">
+          <div>
+            <p class="week-subtitle" id="weekSubtitle">WEEKLY VIEW</p>
+            <div class="month-label" id="monthLabel"></div>
+          </div>
+            <div class="controls">
+            <button class="neutral-button" id="todayButton" type="button">本周</button>
+            <button class="icon-button" id="previousButton" type="button" title="上一周" aria-label="上一周">‹</button>
+            <button class="icon-button" id="nextButton" type="button" title="下一周" aria-label="下一周">›</button>
+            </div>
+        </div>
+        <div class="week-grid-wrap"><div class="week-grid" id="weekGrid"></div></div>
+        <div class="weekdays" aria-hidden="true"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>
+        <div class="days" id="days"></div>
+        <div class="mobile-agenda" id="mobileAgenda"></div>
+        <div class="legend"><span><i class="key"></i>课程</span><span><i class="key video"></i>截止 · 视频批判</span><span><i class="key cinema"></i>截止 · 华语电影</span><span><i class="key curating"></i>截止 · 数字媒体策展</span><span><i class="key influencer"></i>展示 · 影响者研究导论</span><span><i class="key global"></i>截止 · 全球媒体研究</span><span><i class="key gender"></i>截止 · 大众媒体性别</span><span><i class="key task"></i>待办</span><span><i class="key closure"></i>停课</span></div>
+      </section>
+
+      <aside class="side-panel">
+        <section class="side-section">
+          <h2 class="section-heading">任务与 DDL <span class="count" id="taskCount"></span></h2>
+          <form class="task-form" id="taskForm">
+            <input class="task-title" id="taskTitle" required maxlength="90" autocomplete="off" placeholder="新增待办">
+            <input class="task-date" id="taskDate" type="datetime-local" required aria-label="截止时间">
+            <select class="task-reminder" id="taskReminder" aria-label="提醒时间">
+              <option value="0">到时</option>
+              <option value="15">提前15分</option>
+              <option value="60">提前1时</option>
+              <option value="1440">提前1天</option>
+            </select>
+            <button class="primary-button task-submit" type="submit">加入待办</button>
+          </form>
+          <div class="task-list" id="taskList"></div>
+          <div class="reminder-row">
+            <span class="reminder-state" id="reminderState">提醒未开启</span>
+            <button class="neutral-button" id="reminderButton" type="button">开启提醒</button>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    const MS_DAY = 86400000;
+    const appState = { cursor: new Date(), tasks: [] };
+    const requirementStorageKey = 'cityu-sem-a-requirements';
+    const defaultRequirements = {
+      'gender-midterm': {
+        label: 'SM5326 · 大众媒体中的性别：期中短评（9/23–10/5）',
+        title: 'Briefing on Week 4/5 Midterm: Short Review（30%）',
+        text: `提交时间：题目于 9 月 23 日 23:59 公布，10 月 5 日 23:59 截止。\n\n任务：\n1. 阅读 Week 4 发布的 Mulvey 相关文章。\n2. 在 Canvas Week 5 回答公布的问题，完成一篇 1000 字短评。个人作业，迟交会扣分。\n\n写作要求：\n• 使用批判性书面论文格式。\n• 清楚定义题目中的术语，并引用学术文献。\n• 详细分析媒体例子，用来支持你的论点。\n• 这是开卷作业，可以查阅阅读材料或网络资料，但要正确引用和释义。\n• 重点呈现自己的批判性、理性观点，并用经验材料表达、论证和捍卫观点。\n• 附上参考文献列表。\n• 不使用生成式 AI，也不要使用 AI 校对。`
+      },
+      'videographic-brief': {
+        label: 'SM6350 · 视频批判：每周评论',
+        title: 'Assessment Task: Becoming a Critic（20%）',
+        text: `• 每周寻找一段视频内容并进行批评。\n• 选择有趣、值得观察和讨论的内容。\n• 媒介类型不限：电影、电子游戏、电视、直播、YouTube、Bilibili 等都可以。\n• 说明内容，并解释你注意到的课堂所学视听/影像技巧。\n• 每周最多 500 字，分两次提交：Week 1–6 在 Week 7 提交一份文件；Week 7–13 在 Week 13 提交一份文件。`
+      },
+      'videographic-review': {
+        label: 'SM6350 · Videography Review（Week 8）',
+        title: 'Assessments Task: Videographic Criticism Review（20%）',
+        text: `• Review 一项你在香港发现的新产品、食物、菜式或体验。\n• 使用课堂上学到的影像/视听技巧完成评论。\n• 小组人数待定。\n• Week 8 提交。\n• 老师会在几周后再次说明这项作业。`
+      },
+      'videographic-final': {
+        label: 'SM6350 · Video Essay：期末作业',
+        title: 'Final Assignment: Video Essay（50%）',
+        text: `• 5 人组成一个小组。\n• 每组制作一部最长 4 分钟的影像论文。\n• 项目必须通过画面、剪辑、声音、文字和/或旁白推进一个明确、聚焦的批判性论点。\n• 另提交一份 1000–1500 字的研究陈述和贡献记录，解释影像论文，并详细说明每位成员对过程的贡献。`
+      },
+      'influencer-pre': {
+        label: 'SM5351 · 影响者研究导论：小组 Pre（10/29）',
+        title: '项目：可视化创意产出（30 分）＋课堂展示与问答（15 分）',
+        text: `分组规则：\n• 全班共 81 人，每组 4–5 人。\n• 通过 Canvas 自主选择研究主题；同主题学生自动组成小组，不支持自主选择队友。\n\n成果要求：\n• 必须为可视化形式，可选研究海报、网站、数字交互展览、信息图、音视频作品等。\n• 传统书面论文不合格；文字只能作为辅助内容。\n\n展示要求：\n• 每组展示 8–12 分钟，另有 10 分钟问答。\n• 全员需要参与发言；少于 8 分钟扣 5 分，超时扣 2 分。\n• 同伴互动分为 15 分，其中含 5 分同伴分，根据对其他小组展示的反馈质量与提问深度评分。\n\n展示安排：\n• 10 月 8 日起每周 2 组展示，期末周集中展示 8 组；顺序由课堂抽签决定。\n• 所有小组最终提交截止日期相同；早展示的小组可按反馈修改终稿，晚展示的小组有更长准备时间。\n• 每组可申请 1 次 30 分钟 1 对 1 讲师辅导，至少提前 2 周预约。\n\n你的 Pre：10 月 29 日课堂进行。`
+      },
+      'curating-interim-pre': {
+        label: 'SM6331 · 数字媒体策展：Interim Presentation（第 2 组）',
+        title: 'Interim Presentation：9 月 30 日 Pre（Teams 1–5）',
+        text: `你的组别：第 2 组（Teams 1–5），展示时间为 9 月 30 日课堂。\n\n形式与目的：\n• 每组进行一次 Interim Presentation，作为项目开发阶段的检查点。\n• 后续研究和可行性评估后，作品选择仍可改变。\n• 不需要展示已经完成的展览设计；目的是尽早获得反馈，以改善最终提案。\n\n时长：\n• 展示 8 分钟，之后 4 分钟提问与反馈。\n\n展示内容：\n1. 暂定展览标题与核心策展问题。\n2. 当前策展前提与概念陈述。\n3. 研究背景，以及暂定作品和选择理由。\n4. 拟议展览空间、场地或平台。\n5. 小组最希望获得反馈的一个重要问题。\n\n展示安排：\n• Week 5：9 月 30 日（周三），Teams 1–5。\n• Week 6：10 月 7 日（周三），Teams 6–10。\n• Week 7：10 月 14 日（周三），Teams 11–14。`
+      }
+    };
+
+    function loadRequirements() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(requirementStorageKey) || '{}');
+        return Object.fromEntries(Object.entries(defaultRequirements).map(([id, item]) => [id, { ...item, ...(saved[id] || {}) }]));
+      } catch { return JSON.parse(JSON.stringify(defaultRequirements)); }
+    }
+    let requirements = loadRequirements();
+    function saveRequirements() { localStorage.setItem(requirementStorageKey, JSON.stringify(requirements)); }
+    function requirementText(id) { return requirements[id] || defaultRequirements[id]; }
+    function normalizeRequirementId(value) {
+      if (!value) return '';
+      if (value.includes('gender-midterm')) return 'gender-midterm';
+      if (value.includes('videographic-review')) return 'videographic-review';
+      if (value.includes('videographic-final')) return 'videographic-final';
+      if (value.includes('videographic-brief')) return 'videographic-brief';
+      if (value.includes('influencer-pre')) return 'influencer-pre';
+      if (value.includes('curating-interim-pre')) return 'curating-interim-pre';
+      return value;
+    }
+
+    const courseRules = [
+      { code: 'SM6350', name: 'Videographic Criticism', display: '视频批判', day: 2, start: '12:00', end: '14:50', first: '2026-09-01', last: '2026-11-24', skip: ['2026-10-20'] },
+      { code: 'SM5327', name: 'Chinese Cinema', display: '华语电影', day: 2, start: '15:00', end: '17:50', first: '2026-09-01', last: '2026-11-24', skip: [] },
+      { code: 'SM6331', name: 'Digital Media for Curating', display: '数字媒体策展', day: 3, start: '12:00', end: '14:50', first: '2026-09-02', last: '2026-11-25', skip: [] },
+      { code: 'SM5351', name: 'Introduction to Influencer Studies', display: '影响者研究导论', day: 4, start: '12:00', end: '14:50', first: '2026-09-03', last: '2026-11-26', skip: ['2026-10-01'] },
+      { code: 'SM5367', name: 'Global Media Studies', display: '全球媒体研究', day: 4, start: '15:00', end: '17:50', first: '2026-09-03', last: '2026-11-26', skip: ['2026-10-01', '2026-11-12', '2026-11-19', '2026-11-26'] },
+      { code: 'SM5326', name: 'Gender in Popular Media', display: '大众媒体性别', day: 5, start: '15:00', end: '17:50', first: '2026-09-04', last: '2026-11-27', skip: ['2026-09-25', '2026-10-02', '2026-11-13', '2026-11-20', '2026-11-27'] },
+    ];
+
+    const deadlineRows = [
+      ['2026-09-04T23:59', 'SM5367 · 全球媒体研究每周作业'], ['2026-09-06T23:59', 'SM5326 · 大众媒体中的性别每周总结作业'],
+      ['2026-09-08T12:00', 'SM6331 · 数字媒体策展里程碑 1（5%）'], ['2026-09-11T23:59', 'SM5367 · 全球媒体研究每周作业'],
+      ['2026-09-13T23:59', 'SM5326 · 大众媒体中的性别每周总结作业'], ['2026-09-16T12:00', 'SM6331 · 数字媒体策展里程碑 2（10%）'],
+      ['2026-09-18T23:59', 'SM5367 · 全球媒体研究每周作业'], ['2026-09-20T23:59', 'SM5326 · 大众媒体中的性别每周总结作业'],
+      ['2026-09-25T23:59', 'SM5367 · 全球媒体研究每周作业'], ['2026-09-27T23:59', 'SM5326 · 大众媒体中的性别每周总结作业'],
+      ['2026-09-30T12:00', 'SM6331 · 数字媒体策展 Interim Presentation 第 2 组（Teams 1–5）'], ['2026-09-30T23:59', 'SM6331 · 数字媒体策展里程碑 1（提交截止）'], ['2026-09-30T23:59', 'SM6331 · 数字媒体策展里程碑 2（提交截止）'],
+      ['2026-10-02T23:59', 'SM5367 · 全球媒体研究每周作业'], ['2026-10-04T23:59', 'SM5326 · 大众媒体中的性别每周总结作业'], ['2026-10-05T23:59', 'SM5326 · 大众媒体中的性别期中短评（30%）'],
+      ['2026-10-06T15:00', 'SM5327 · 华语电影期中展示（40%）'],
+      ['2026-10-07T12:00', 'SM6331 · 数字媒体策展 Interim Presentation（Teams 6–10）'], ['2026-10-08T23:59', 'SM5367 · 全球媒体研究期中个人书评（20%）'],
+      ['2026-10-11T23:59', 'SM5326 · 大众媒体中的性别每周总结作业'], ['2026-10-12T23:59', 'SM5327 · 华语电影小组研究论文修改稿（40%）'], ['2026-10-14T12:00', 'SM6331 · 数字媒体策展 Interim Presentation（Teams 11–14）'],
+      ['2026-10-16T23:59', 'SM5367 · 全球媒体研究每周作业'], ['2026-10-17T23:59', 'SM5327 · 华语电影个人评述作业（30%）'], ['2026-10-17T23:59', 'SM6350 · Videography Review 期中作业（Week 8）'],
+      ['2026-10-18T23:59', 'SM6350 · 视频批判每周评论阶段一（20%）'], ['2026-10-23T23:59', 'SM5367 · 全球媒体研究每周作业'],
+      ['2026-10-25T23:59', 'SM5326 · 大众媒体中的性别每周总结作业'], ['2026-10-25T23:59', 'SM6350 · 视频批判小组影像评论作业（20%）'],
+      ['2026-10-30T23:59', 'SM5367 · 全球媒体研究每周作业'], ['2026-11-01T23:59', 'SM5326 · 大众媒体中的性别每周总结作业'],
+      ['2026-11-04T12:00', 'SM5367 · 全球媒体研究每周作业'],
+      ['2026-11-08T23:59', 'SM5326 · 大众媒体中的性别每周总结作业'], ['2026-11-17T12:00', 'SM6331 · 期末项目展示 1-7 组（20%）'],
+      ['2026-11-23T15:00', 'SM5327 · 华语电影期末开卷测验（30%）'], ['2026-11-25T12:00', 'SM6331 · 期末项目展示 8-14 组（20%）'],
+      ['2026-11-27T23:59', 'SM5367 · 全球媒体研究期末个人研究论文（40%）'], ['2026-11-29T23:59', 'SM6350 · 视频批判每周评论阶段二（20%）'],
+      ['2026-11-29T23:59', 'SM5367 · 全球媒体研究期末小组展示及回应（30%）'], ['2026-11-29T23:59', 'SM5326 · 大众媒体中的性别期末小组展示及回应（30%）'],
+      ['2026-11-30T13:59', 'SM5326 · 大众媒体中的性别期末个人研究论文（30%）'],
+    ];
+
+    const milestoneRows = [
+      ['2026-10-29T12:00', 'SM5351 · 影响者研究导论课堂展示（Pre）'],
+    ];
+
+    const closureRows = [
+      ['2026-10-01', '停课 · 国庆节'],
+    ];
+
+    const seededTasks = [
+      { id: 'seed-gender-midterm', title: 'Gender 期中短评：阅读 Mulvey Week 4 材料，完成 1000 字短评', due: '2026-10-05T23:59', reminder: '1440', done: false, notified: false, requirement: 'gender-midterm' },
+      { id: 'seed-video-week1', title: '补写视频批判第 1 篇：选视频并完成不超过 500 字批评', due: '2026-09-24T21:00', reminder: '60', done: false, notified: false, requirement: 'videographic-brief' },
+      { id: 'seed-video-week2', title: '补写视频批判第 2 篇：选视频并完成不超过 500 字批评', due: '2026-09-25T21:00', reminder: '60', done: false, notified: false, requirement: 'videographic-brief' },
+      { id: 'seed-video-week3', title: '补写视频批判第 3 篇：选视频并完成不超过 500 字批评', due: '2026-09-26T21:00', reminder: '60', done: false, notified: false, requirement: 'videographic-brief' },
+      { id: 'seed-video-week4', title: '完成本周视频批判第 4 篇：选视频并完成不超过 500 字批评', due: '2026-09-27T21:00', reminder: '60', done: false, notified: false, requirement: 'videographic-brief' },
+      { id: 'seed-chinese-materials', title: '华语电影：整理课堂展示和论文所需素材', due: '2026-09-27T18:00', reminder: '1440', done: false, notified: false },
+    ];
+
+    function dateFromKey(key) { return new Date(`${key.length === 10 ? `${key}T00:00` : key}`); }
+    function keyFromDate(date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
+    function timeLabel(key) { return key.includes('T') ? key.slice(11, 16) : ''; }
+    function shortDate(key) { const d = dateFromKey(key); return `${d.getMonth() + 1}/${d.getDate()}`; }
+    function formatDateTime(key) { const d = dateFromKey(key); return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+    function startOfDay(date) { return new Date(date.getFullYear(), date.getMonth(), date.getDate()); }
+
+    function buildCourseEvents() {
+      const items = [];
+      for (const course of courseRules) {
+        const cursor = dateFromKey(course.first);
+        const last = dateFromKey(course.last);
+        while (cursor <= last) {
+          const date = keyFromDate(cursor);
+          if (!course.skip.includes(date)) items.push({ date, time: course.start, title: course.display, fullTitle: `${course.code} · ${course.name}`, kind: 'class' });
+          cursor.setDate(cursor.getDate() + 7);
+        }
+      }
+      return items;
+    }
+
+    function deadlineLabel(title) { return title.replace(/^SM\d+ · /, '截止 · '); }
+    function presentationLabel(title) { return title.replace(/^SM\d+ · /, '课堂展示 · '); }
+    function deadlineCourseClass(title) { return `deadline-${title.match(/^SM\d+/)?.[0]?.toLowerCase() || 'other'}`; }
+
+    const academicEvents = [
+      ...buildCourseEvents(),
+      ...deadlineRows.map(([dateTime, title]) => ({ date: dateTime.slice(0, 10), time: timeLabel(dateTime), title: deadlineLabel(title), fullTitle: title, kind: `deadline ${deadlineCourseClass(title)}`, dateTime })),
+      ...milestoneRows.map(([dateTime, title]) => ({ date: dateTime.slice(0, 10), time: timeLabel(dateTime), title: presentationLabel(title), fullTitle: title, kind: `deadline ${deadlineCourseClass(title)}`, dateTime })),
+      ...closureRows.map(([date, title]) => ({ date, time: '', title, fullTitle: title, kind: 'closure' })),
+    ];
+
+    function loadTasks() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('cityu-sem-a-tasks') || '[]');
+        const current = Array.isArray(stored) ? stored : [];
+        if (localStorage.getItem('cityu-sem-a-task-seed-20260923')) {
+          const migrated = current.map(task => task.id === 'seed-video-week4' ? { ...task, title: '完成本周视频批判第 4 篇：选视频并完成不超过 500 字批评', requirement: 'videographic-brief' } : task);
+          if (JSON.stringify(migrated) !== JSON.stringify(current)) localStorage.setItem('cityu-sem-a-tasks', JSON.stringify(migrated));
+          return migrated;
+        }
+        const existingIds = new Set(current.map(task => task.id));
+        const seeded = [...current, ...seededTasks.filter(task => !existingIds.has(task.id)).map(task => ({ ...task }))];
+        localStorage.setItem('cityu-sem-a-tasks', JSON.stringify(seeded));
+        localStorage.setItem('cityu-sem-a-task-seed-20260923', 'true');
+        return seeded;
+      } catch { return seededTasks.map(task => ({ ...task })); }
+    }
+    appState.tasks = loadTasks();
+    function saveTasks() { localStorage.setItem('cityu-sem-a-tasks', JSON.stringify(appState.tasks)); }
+    function taskEvents() { return appState.tasks.map(task => ({ date: task.due.slice(0, 10), time: timeLabel(task.due), title: task.title, kind: 'task', task })); }
+    function eventsFor(date) { return [...academicEvents, ...taskEvents()].filter(event => event.date === date).sort((a, b) => a.time.localeCompare(b.time)); }
+    function requirementIdForEvent(event) {
+      if (event.task?.requirement) return normalizeRequirementId(event.task.requirement);
+      if (event.fullTitle?.startsWith('SM6350') && event.fullTitle.includes('Videography Review')) return 'videographic-review';
+      if (event.fullTitle?.startsWith('SM6350')) return 'videographic-brief';
+      if (event.fullTitle?.startsWith('SM5326') && event.fullTitle.includes('期中短评')) return 'gender-midterm';
+      if (event.fullTitle?.startsWith('SM5351') && event.fullTitle.includes('展示')) return 'influencer-pre';
+      if (event.fullTitle?.startsWith('SM6331') && event.fullTitle.includes('Interim Presentation')) return 'curating-interim-pre';
+      return '';
+    }
+    function requirementEditorMarkup(id) {
+      const item = requirementText(id);
+      if (!item) return '';
+      return `<details class="requirement-card" data-inline-requirement="${id}"><summary>作业要求：${escapeHtml(item.label)}</summary><div class="requirement-editor"><label>标题<input data-requirement-field="title" data-requirement-id="${id}" value="${escapeHtml(item.title)}"></label><label>要求正文<textarea data-requirement-field="text" data-requirement-id="${id}">${escapeHtml(item.text)}</textarea></label><div class="requirement-editor-note">可直接修改；保存后会保留在当前浏览器。</div><button class="requirement-save" type="button" data-action="save-requirement" data-requirement-id="${id}">保存文字</button></div></details>`;
+    }
+    function renderRequirements() {
+      return Object.entries(requirements).map(([id]) => requirementEditorMarkup(id)).join('');
+    }
+
+    function renderCalendar() {
+      const weekStart = new Date(appState.cursor);
+      weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+      const today = keyFromDate(new Date());
+      const days = Array.from({ length: 7 }, (_, index) => new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + index));
+      const weekEnd = days[6];
+      const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+      document.querySelector('#monthLabel').textContent = sameMonth ? `${weekStart.getFullYear()}年${weekStart.getMonth() + 1}月` : `${weekStart.getFullYear()}年${weekStart.getMonth() + 1}月 - ${weekEnd.getMonth() + 1}月`;
+      document.querySelector('#weekSubtitle').textContent = `${keyFromDate(weekStart)} - ${keyFromDate(weekEnd)}`;
+
+      const header = ['<div class="week-corner"></div>', ...days.map((date, index) => `<div class="week-day ${keyFromDate(date) === today ? 'today' : ''}"><span class="week-day-name">${['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][index]}</span><span class="week-day-date">${date.getMonth() + 1}/${date.getDate()}</span></div>`)].join('');
+      const classRows = [['09:00', '11:50'], ['12:00', '14:50'], ['15:00', '17:50'], ['19:00', '21:50']];
+      const rows = classRows.map(([start, end]) => {
+        const cells = days.map(date => {
+          const events = eventsFor(keyFromDate(date)).filter(event => event.kind === 'class' && event.time === start);
+          return `<div class="schedule-cell">${events.map(event => { const courseClass = event.fullTitle.match(/^SM\d+/)?.[0].toLowerCase() || 'other'; return `<div class="week-event course-event course-${courseClass}" title="${escapeHtml(event.fullTitle)}"><span class="week-event-title">${escapeHtml(event.fullTitle)}</span><span class="week-event-subtitle">${escapeHtml(event.title)}</span></div>`; }).join('')}</div>`;
+        }).join('');
+        return `<div class="time-label"><b>${start}</b><span>to ${end}</span></div>${cells}`;
+      }).join('');
+      const taskCells = days.map(date => {
+        const events = eventsFor(keyFromDate(date)).filter(event => event.kind !== 'class');
+        return `<div class="task-cell">${events.map(event => {
+          const requirement = requirementIdForEvent(event);
+          const taskCourseClass = event.kind === 'task' ? (event.title.includes('视频') ? 'course-sm6350' : event.title.includes('华语电影') ? 'course-sm5327' : event.title.includes('Gender') ? 'course-sm5326' : '') : '';
+          const eventClass = event.kind.includes('deadline') ? `${event.kind} deadline-event` : event.kind === 'closure' ? 'closure-event' : `task-event ${taskCourseClass}`;
+          const body = `<span class="week-event-title">${event.kind.includes('deadline') ? 'DDL · ' : ''}${event.time ? `${event.time} ` : ''}${escapeHtml(event.title)}</span>${requirement ? `<span class="week-event-link-note">打开作业要求 ↗</span>` : ''}`;
+          return requirement ? `<a class="week-event ${eventClass}" href="#requirement-${requirement}" data-open-requirement="${requirement}" title="打开作业要求">${body}</a>` : `<div class="week-event ${eventClass}">${body}</div>`;
+        }).join('')}</div>`;
+      }).join('');
+      document.querySelector('#weekGrid').innerHTML = `${header}${rows}<div class="task-label"><b>任务</b><span>截止 / 待办</span></div>${taskCells}`;
+
+      const weekdayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+      document.querySelector('#mobileAgenda').innerHTML = days.map((date, index) => {
+        const events = eventsFor(keyFromDate(date));
+        const eventMarkup = events.length ? events.map(event => {
+          const requirement = requirementIdForEvent(event);
+          const courseKey = (event.fullTitle || '').match(/^SM\d+/)?.[0].toLowerCase() || (event.kind === 'task' && event.title.includes('视频') ? 'sm6350' : event.kind === 'task' && event.title.includes('华语电影') ? 'sm5327' : event.kind === 'task' && event.title.includes('Gender') ? 'sm5326' : '');
+          const eventClass = event.kind === 'class' ? `week-event course-event course-${courseKey}` : event.kind.includes('deadline') ? `${event.kind} deadline-event` : event.kind === 'closure' ? 'closure-event' : `task-event course-${courseKey}`;
+          const title = event.kind === 'class' ? `<span class="week-event-title">${escapeHtml(event.fullTitle)}</span><span class="week-event-subtitle">${escapeHtml(event.title)}</span>` : `<span class="week-event-title">${event.kind.includes('deadline') ? 'DDL · ' : ''}${event.time ? `${event.time} ` : ''}${escapeHtml(event.title)}</span>${requirement ? '<span class="week-event-link-note">打开作业要求 ↗</span>' : ''}`;
+          const card = `<span class="week-event mobile-event ${eventClass}">${title}</span>`;
+          return `<div class="mobile-event-row"><span class="mobile-event-time">${event.time || '全天'}</span>${requirement ? `<a href="#requirement-${requirement}" data-open-requirement="${requirement}" title="打开作业要求">${card}</a>` : card}</div>`;
+        }).join('') : '<div class="empty">无课程或任务</div>';
+        return `<section class="mobile-day"><header class="mobile-day-header"><b>${weekdayNames[index]} ${date.getMonth() + 1}/${date.getDate()}</b><span>${keyFromDate(date) === today ? '今天' : ''}</span></header>${eventMarkup}</section>`;
+      }).join('');
+    }
+
+    function renderUpcoming() {}
+
+    function renderTasks() {
+      const now = new Date();
+      const academic = [...deadlineRows.map(([dateTime, title]) => ({ dateTime, title, kind: 'ddl' })), ...milestoneRows.map(([dateTime, title]) => ({ dateTime, title, kind: 'ddl' }))].map(item => ({ ...item, date: dateFromKey(item.dateTime) })).filter(item => item.date >= now).sort((a, b) => a.date - b.date);
+      const merged = [...appState.tasks.map(task => ({ kind: 'task', date: dateFromKey(task.due), task })), ...academic].sort((a, b) => a.date - b.date || (a.kind === 'task' ? -1 : 1));
+      const active = appState.tasks.filter(task => !task.done).length;
+      document.querySelector('#taskCount').textContent = `${active} 待办 · 全学期 ${academic.length} 个 DDL/展示`;
+      document.querySelector('#taskList').innerHTML = merged.length ? merged.map(item => {
+        if (item.kind === 'task') {
+          const task = item.task; const requirement = normalizeRequirementId(task.requirement);
+          return `<div class="task-item ${task.done ? 'done' : ''}"><input type="checkbox" data-action="toggle" data-id="${task.id}" ${task.done ? 'checked' : ''} aria-label="完成待办"><div><div class="task-kind">待办</div><div class="task-name" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</div><div class="task-due">${formatDateTime(task.due)} · ${reminderText(task.reminder)}</div>${requirement ? requirementEditorMarkup(requirement) : ''}</div><button class="icon-button" data-action="delete" data-id="${task.id}" type="button" title="删除待办" aria-label="删除待办">×</button></div>`;
+        }
+        const requirement = requirementIdForEvent({ fullTitle: item.title });
+        const isExplicitDeadline = item.title.includes('提交截止') || item.title.includes('期中短评') || item.title.includes('Videography Review') || item.title.includes('研究论文') || item.title.includes('书评') || item.title.includes('作业');
+        return `<div class="task-item ddl-item"><span class="task-check-symbol" aria-hidden="true">◆</span><div><div class="task-kind">${isExplicitDeadline ? '<span class="ddl-badge">DDL</span>' : ''}课程 DDL / 展示</div><div class="task-name">${escapeHtml(deadlineLabel(item.title))}</div><div class="task-due ${isExplicitDeadline ? 'ddl-due' : ''}">${isExplicitDeadline ? '截止：' : ''}${formatDateTime(item.dateTime)}</div>${requirement ? requirementEditorMarkup(requirement) : ''}</div></div>`;
+      }).join('') : '<div class="empty">没有待办或近期 DDL</div>';
+    }
+
+    function reminderText(minutes) { return Number(minutes) ? `提前${Number(minutes) >= 1440 ? '1天' : `${minutes}分`}` : '到时提醒'; }
+    function escapeHtml(value) { return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;'); }
+
+    function reminderTick() {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const now = Date.now();
+      let changed = false;
+      for (const task of appState.tasks) {
+        const target = new Date(task.due).getTime() - Number(task.reminder) * 60000;
+        if (!task.done && !task.notified && target <= now) {
+          new Notification('待办提醒', { body: `${task.title} · ${formatDateTime(task.due)}` });
+          task.notified = true;
+          changed = true;
+        }
+      }
+      if (changed) saveTasks();
+    }
+
+    async function enableReminders() {
+      const state = document.querySelector('#reminderState');
+      if (!('Notification' in window)) { state.textContent = '当前浏览器不支持提醒'; return; }
+      const result = await Notification.requestPermission();
+      state.textContent = result === 'granted' ? '提醒已开启' : '提醒未获授权';
+      state.classList.toggle('on', result === 'granted');
+      reminderTick();
+    }
+
+    document.querySelector('#taskForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const title = document.querySelector('#taskTitle').value.trim();
+      const due = document.querySelector('#taskDate').value;
+      if (!title || !due) return;
+      appState.tasks.push({ id: crypto.randomUUID(), title, due, reminder: document.querySelector('#taskReminder').value, done: false, notified: false });
+      saveTasks();
+      event.currentTarget.reset();
+      renderTasks();
+      renderCalendar();
+    });
+
+    document.querySelector('#taskList').addEventListener('click', event => {
+      const button = event.target.closest('button[data-action="delete"]');
+      if (button) {
+        appState.tasks = appState.tasks.filter(task => task.id !== button.dataset.id);
+        saveTasks(); renderTasks(); renderCalendar();
+        return;
+      }
+      const saveButton = event.target.closest('button[data-action="save-requirement"]');
+      if (!saveButton) return;
+      const id = saveButton.dataset.requirementId;
+      const card = saveButton.closest('.requirement-card');
+      requirements[id] = { ...requirements[id], title: card.querySelector('[data-requirement-field="title"]').value.trim(), text: card.querySelector('[data-requirement-field="text"]').value };
+      saveRequirements();
+      saveButton.textContent = '已保存';
+      setTimeout(() => { saveButton.textContent = '保存文字'; }, 1400);
+    });
+    document.querySelector('#taskList').addEventListener('change', event => {
+      if (event.target.dataset.action !== 'toggle') return;
+      const task = appState.tasks.find(item => item.id === event.target.dataset.id);
+      task.done = event.target.checked; saveTasks(); renderTasks(); renderCalendar();
+    });
+    document.addEventListener('click', event => {
+      const link = event.target.closest('[data-open-requirement]');
+      if (!link) return;
+      const card = document.querySelector(`[data-inline-requirement="${link.dataset.openRequirement}"]`);
+      if (card) { card.open = true; card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    });
+    document.querySelector('#previousButton').addEventListener('click', () => { appState.cursor = new Date(appState.cursor.getFullYear(), appState.cursor.getMonth(), appState.cursor.getDate() - 7); renderCalendar(); });
+    document.querySelector('#nextButton').addEventListener('click', () => { appState.cursor = new Date(appState.cursor.getFullYear(), appState.cursor.getMonth(), appState.cursor.getDate() + 7); renderCalendar(); });
+    document.querySelector('#todayButton').addEventListener('click', () => { appState.cursor = new Date(); renderCalendar(); });
+    document.querySelector('#reminderButton').addEventListener('click', enableReminders);
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      document.querySelector('#reminderState').textContent = '提醒已开启';
+      document.querySelector('#reminderState').classList.add('on');
+    }
+    renderRequirements(); renderCalendar(); renderUpcoming(); renderTasks(); reminderTick(); setInterval(reminderTick, 30000);
+  </script>
+</body>
+</html>
